@@ -8,6 +8,7 @@ public struct CandidateScanner {
     let probe: ActivityProbe
     let isAppRunning: (URL) -> Bool
     let canModify: (URL) -> Bool
+    let sampler: CompressibilityProbe
     let now: Date
     private let excludedRoots: [String]
     private let excludedExtensions: Set<String>
@@ -17,12 +18,14 @@ public struct CandidateScanner {
         probe: ActivityProbe = SpotlightActivityProbe(),
         isAppRunning: @escaping (URL) -> Bool = RunningApps.snapshot(),
         canModify: @escaping (URL) -> Bool = CandidateScanner.canModify,
+        sampler: CompressibilityProbe = LZFSESampler(),
         now: Date = Date()
     ) {
         self.config = config
         self.probe = probe
         self.isAppRunning = isAppRunning
         self.canModify = canModify
+        self.sampler = sampler
         self.now = now
         excludedRoots = config.excludedPaths.map { Paths.canonical(Paths.expand($0)).path }
         excludedExtensions = Set(config.excludedExtensions)
@@ -112,8 +115,11 @@ public struct CandidateScanner {
         if isAppRunning(app) { return result.skip(.running) }
         let usage: DiskUsage
         let bundleDate: Date
+        var uncompressedFiles: [(url: URL, facts: FileFacts)] = []
         do {
-            usage = try DiskUsage.measure(app)
+            usage = try DiskUsage.measure(app) { url, facts in
+                if !facts.isCompressed { uncompressedFiles.append((url, facts)) }
+            }
             bundleDate = try appFilesystemDate(app)
         } catch {
             result.problems.append("\(app.path): \(error.localizedDescription)")
@@ -124,10 +130,42 @@ public struct CandidateScanner {
         }
         guard usage.uncompressedLogicalBytes > 0 else { return result.skip(.alreadyCompressed) }
         guard canModify(app.appendingPathComponent("Contents")) else { return result.skip(.needsAdmin) }
-        result.candidates.append(Candidate(
+        let ratio: Double
+        do {
+            ratio = try bundleRatio(uncompressedFiles)
+        } catch {
+            result.problems.append("\(app.path): \(error.localizedDescription)")
+            return result.skip(.unreadable)
+        }
+        guard meetsMinimumSavings(ratio) else { return result.skip(.incompressible) }
+        var candidate = Candidate(
             url: app, kind: .app, categoryID: Categories.appsID, lastActivity: last,
             compressibleBytes: usage.uncompressedLogicalBytes, allocatedBytes: usage.allocatedBytes
-        ))
+        )
+        candidate.estimatedSavedBytes = uncompressedFiles.reduce(0) { total, file in
+            total + max(0, SavingsEstimate.savedBytes(
+                allocatedBefore: file.facts.allocatedBytes, logicalBytes: file.facts.logicalBytes, ratio: ratio
+            ))
+        }
+        result.candidates.append(candidate)
+    }
+
+    /// Sampling every file of a large app would read most of it, so sample the 64
+    /// largest, which hold most of the bytes, and weight each by what was read.
+    private func bundleRatio(_ files: [(url: URL, facts: FileFacts)]) throws -> Double {
+        var sampledBytes = 0.0
+        var compressedBytes = 0.0
+        for file in files.sorted(by: { $0.facts.logicalBytes > $1.facts.logicalBytes }).prefix(64) {
+            let weight = Double(min(file.facts.logicalBytes, Int64(LZFSESampler.sampleBytes)))
+            compressedBytes += weight * (try sampler.compressedRatio(of: file.url, accessed: file.facts.accessed))
+            sampledBytes += weight
+        }
+        return sampledBytes > 0 ? compressedBytes / sampledBytes : 1
+    }
+
+    /// The same bar afsctool applies with -s, checked before anything is written.
+    private func meetsMinimumSavings(_ ratio: Double) -> Bool {
+        (1 - ratio) * 100 >= Double(config.minSavingsPercent)
     }
 
     /// Updates rewrite Info.plist, so its mtime marks the last install or update.
@@ -228,9 +266,21 @@ public struct CandidateScanner {
             return result.skip(.recentlyUsed)
         }
         guard canModify(url) else { return result.skip(.needsAdmin) }
-        result.candidates.append(Candidate(
+        let ratio: Double
+        do {
+            ratio = try sampler.compressedRatio(of: url, accessed: facts.accessed)
+        } catch {
+            result.problems.append("\(url.path): \(error.localizedDescription)")
+            return result.skip(.unreadable)
+        }
+        guard meetsMinimumSavings(ratio) else { return result.skip(.incompressible) }
+        var candidate = Candidate(
             url: url, kind: .file, categoryID: category.id, lastActivity: last,
             compressibleBytes: facts.logicalBytes, allocatedBytes: facts.allocatedBytes
-        ))
+        )
+        candidate.estimatedSavedBytes = SavingsEstimate.savedBytes(
+            allocatedBefore: facts.allocatedBytes, logicalBytes: facts.logicalBytes, ratio: ratio
+        )
+        result.candidates.append(candidate)
     }
 }

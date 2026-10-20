@@ -10,12 +10,14 @@ public struct DiskUsage: Equatable {
 
     public init() {}
 
-    /// Sums every regular file at or under `url` without following symlinks.
-    public static func measure(_ url: URL) throws -> DiskUsage {
+    /// Sums every regular file at or under `url` without following symlinks, handing
+    /// each one to `visit`.
+    public static func measure(_ url: URL, visit: (URL, FileFacts) -> Void = { _, _ in }) throws -> DiskUsage {
         var usage = DiskUsage()
         let root = try FileFacts.read(url)
         guard root.isDirectory else {
             usage.add(root)
+            if root.isRegularFile { visit(url, root) }
             return usage
         }
         // The errorHandler matters: without one an unreadable subfolder is skipped
@@ -31,7 +33,9 @@ public struct DiskUsage: Equatable {
             throw CocoaError(.fileReadUnknown, userInfo: [NSFilePathErrorKey: url.path])
         }
         for case let child as URL in walker {
-            usage.add(try FileFacts.read(child))
+            let facts = try FileFacts.read(child)
+            usage.add(facts)
+            if facts.isRegularFile { visit(child, facts) }
         }
         if let walkError { throw walkError }
         return usage

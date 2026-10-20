@@ -13,12 +13,15 @@ public struct Candidate: Equatable {
     /// Logical size of the files not yet compressed.
     public let compressibleBytes: Int64
     public let allocatedBytes: Int64
+    /// Disk space compression should free, from a sampled compression ratio.
+    public var estimatedSavedBytes: Int64 = 0
 }
 
 public enum SkipReason: String, CaseIterable {
     case recentlyUsed
     case alreadyCompressed
     case excludedType
+    case incompressible
     case excludedPath
     case noMatchingCategory
     case tooSmall

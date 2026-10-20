@@ -17,7 +17,8 @@ enum CompressCommand {
         }
 
         let report = CompressionRun(compressor: compressor, progress: Console.status).execute(result.candidates)
-        print("Saved \(Format.bytes(report.savedBytes)) on disk across \(report.compressedCount) of \(report.outcomes.count) item(s).")
+        let estimated = result.candidates.reduce(Int64(0)) { $0 + $1.estimatedSavedBytes }
+        print("Saved \(Format.bytes(report.savedBytes)) on disk across \(report.compressedCount) of \(report.outcomes.count) item(s) (estimated ≈\(Format.bytes(estimated))).")
         for outcome in report.outcomes.sorted(by: { $0.savedBytes > $1.savedBytes }).prefix(10) where outcome.savedBytes > 0 {
             print("  " + Format.padLeft(Format.bytes(outcome.savedBytes), 10) + "  " + Paths.abbreviate(outcome.candidate.url))
         }

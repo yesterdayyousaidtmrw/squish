@@ -9,7 +9,10 @@ struct ScanPrinter {
         let apps = result.candidates.filter { $0.kind == .app }
         let files = result.candidates.filter { $0.kind == .file }
         print("Candidates: \(apps.count) apps (\(Format.bytes(total(apps)))), \(files.count) files (\(Format.bytes(total(files)))); sizes are before compression")
-        let ranked = result.candidates.sorted { $0.compressibleBytes > $1.compressibleBytes }
+        let estimated = result.candidates.reduce(Int64(0)) { $0 + $1.estimatedSavedBytes }
+        let caveat = config.algorithm == .lzfse ? "" : " (sampled with LZFSE; \(config.algorithm.rawValue) will differ)"
+        print("Estimated saving: ≈\(Format.bytes(estimated)) on disk\(caveat)")
+        let ranked = result.candidates.sorted { $0.estimatedSavedBytes > $1.estimatedSavedBytes }
         for candidate in ranked.prefix(limit) {
             print(row(candidate))
         }
@@ -40,7 +43,8 @@ struct ScanPrinter {
 
     private func row(_ candidate: Candidate) -> String {
         "  " + Format.pad(candidate.kind.rawValue, 5)
-            + Format.padLeft(Format.bytes(candidate.compressibleBytes), 10) + "  "
+            + Format.padLeft(Format.bytes(candidate.compressibleBytes), 10)
+            + Format.padLeft("≈−" + Format.bytes(candidate.estimatedSavedBytes), 12) + "  "
             + Format.padLeft(Format.idleDays(since: candidate.lastActivity), 10) + "  "
             + Format.pad(candidate.categoryID, 18)
             + Paths.abbreviate(candidate.url)
