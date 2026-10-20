@@ -6,10 +6,14 @@ enum CompressCommand {
         try invocation.rejectPositionals()
         let config = try ConfigLoader.load(invocation)
         let compressor = AfsctoolCompressor(executable: try AfsctoolCompressor.locate(), config: config)
-        let result = ScanCommand.scan(config)
+        let ledgerStore = ConfigLoader.ledgerStore(invocation)
+        var ledger = try ledgerStore.load()
+        let result = ScanCommand.scan(config, ledger: ledger)
         ScanPrinter(limit: 10).printSummary(result, config: config)
         guard !result.candidates.isEmpty else {
             print("Nothing to compress.")
+            try ledger.update(after: RunReport(outcomes: [], problems: []), rewritten: result.rewrittenPaths)
+            try ledgerStore.save(ledger)
             return try failIfProblems(result.problems.count)
         }
         guard invocation.flags.contains("--yes") || Console.confirm("Compress \(result.candidates.count) item(s) in place?") else {
@@ -23,6 +27,8 @@ enum CompressCommand {
             print("  " + Format.padLeft(Format.bytes(outcome.savedBytes), 10) + "  " + Paths.abbreviate(outcome.candidate.url))
         }
         ScanPrinter.printProblems(report.problems)
+        try ledger.update(after: report, rewritten: result.rewrittenPaths)
+        try ledgerStore.save(ledger)
         try failIfProblems(result.problems.count + report.problems.count)
     }
 

@@ -9,6 +9,7 @@ public struct CandidateScanner {
     let isAppRunning: (URL) -> Bool
     let canModify: (URL) -> Bool
     let sampler: CompressibilityProbe
+    let ledger: ChurnLedger
     let now: Date
     private let excludedRoots: [String]
     private let excludedExtensions: Set<String>
@@ -19,8 +20,10 @@ public struct CandidateScanner {
         isAppRunning: @escaping (URL) -> Bool = RunningApps.snapshot(),
         canModify: @escaping (URL) -> Bool = CandidateScanner.canModify,
         sampler: CompressibilityProbe = LZFSESampler(),
+        ledger: ChurnLedger = ChurnLedger(),
         now: Date = Date()
     ) {
+        self.ledger = ledger
         self.config = config
         self.probe = probe
         self.isAppRunning = isAppRunning
@@ -56,14 +59,14 @@ public struct CandidateScanner {
 
     /// nil when the item was used inside its dormancy window. Spotlight is slow per
     /// file, so it is only asked once the cheap filesystem date already looks dormant.
-    private func dormantSince(_ url: URL, filesystemDate: Date, categoryID: String) -> Date? {
-        guard isDormant(since: filesystemDate, categoryID: categoryID) else { return nil }
+    private func dormantSince(_ url: URL, filesystemDate: Date, days: Int) -> Date? {
+        guard isDormant(since: filesystemDate, days: days) else { return nil }
         let last = max(filesystemDate, probe.spotlightActivity(of: url) ?? filesystemDate)
-        return isDormant(since: last, categoryID: categoryID) ? last : nil
+        return isDormant(since: last, days: days) ? last : nil
     }
 
-    private func isDormant(since last: Date, categoryID: String) -> Bool {
-        now.timeIntervalSince(last) >= Double(config.dormantDays(forCategory: categoryID)) * 86_400
+    private func isDormant(since last: Date, days: Int) -> Bool {
+        now.timeIntervalSince(last) >= Double(days) * 86_400
     }
 
     private func isExcluded(_ url: URL) -> Bool {
@@ -125,7 +128,7 @@ public struct CandidateScanner {
             result.problems.append("\(app.path): \(error.localizedDescription)")
             return result.skip(.unreadable)
         }
-        guard let last = dormantSince(app, filesystemDate: bundleDate, categoryID: Categories.appsID) else {
+        guard let last = dormantSince(app, filesystemDate: bundleDate, days: config.dormantDays(forCategory: Categories.appsID)) else {
             return result.skip(.recentlyUsed)
         }
         guard usage.uncompressedLogicalBytes > 0 else { return result.skip(.alreadyCompressed) }
@@ -261,8 +264,11 @@ public struct CandidateScanner {
         guard let category = categories.first(where: { $0.matches(fileExtension: ext, directories: directories) }) else {
             return result.skip(.noMatchingCategory)
         }
+        let churn = ledger.rewrites(for: url.path, facts: facts)
+        if churn.isNew { result.rewrittenPaths.append(url.path) }
+        let days = config.dormantDays(forCategory: category.id) << churn.count
         let filesystemDate = max(facts.modified, facts.accessed, projectActivity ?? .distantPast)
-        guard let last = dormantSince(url, filesystemDate: filesystemDate, categoryID: category.id) else {
+        guard let last = dormantSince(url, filesystemDate: filesystemDate, days: days) else {
             return result.skip(.recentlyUsed)
         }
         guard canModify(url) else { return result.skip(.needsAdmin) }

@@ -35,6 +35,8 @@ public struct ScanResult {
     public var candidates: [Candidate] = []
     public var skips: [SkipReason: Int] = [:]
     public var problems: [String] = []
+    /// Files Squish compressed that have since been replaced with new content.
+    public var rewrittenPaths: [String] = []
 
     public init() {}
 

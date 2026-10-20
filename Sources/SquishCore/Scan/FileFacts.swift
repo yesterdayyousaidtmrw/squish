@@ -6,6 +6,7 @@ public struct FileFacts: Equatable {
     public let isDirectory: Bool
     public let isCompressed: Bool
     public let linkCount: Int
+    public let inode: UInt64
     public let logicalBytes: Int64
     public let allocatedBytes: Int64
     public let modified: Date
@@ -23,6 +24,7 @@ public struct FileFacts: Equatable {
             isDirectory: type == S_IFDIR,
             isCompressed: info.st_flags & UInt32(UF_COMPRESSED) != 0,
             linkCount: Int(info.st_nlink),
+            inode: info.st_ino,
             logicalBytes: Int64(info.st_size),
             allocatedBytes: Int64(info.st_blocks) * 512,
             modified: date(info.st_mtimespec),

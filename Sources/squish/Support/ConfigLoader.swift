@@ -6,6 +6,10 @@ enum ConfigLoader {
         invocation.options["--config"].map { ConfigStore(url: Paths.expand($0)) } ?? ConfigStore()
     }
 
+    static func ledgerStore(_ invocation: Invocation) -> LedgerStore {
+        LedgerStore(configURL: store(invocation).url)
+    }
+
     /// The saved config with this run's command-line overrides applied on top.
     static func load(_ invocation: Invocation) throws -> SquishConfig {
         var config = try store(invocation).load()

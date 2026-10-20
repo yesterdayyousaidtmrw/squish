@@ -9,6 +9,11 @@ public struct CandidateOutcome {
 public struct RunReport {
     public let outcomes: [CandidateOutcome]
     public let problems: [String]
+
+    public init(outcomes: [CandidateOutcome], problems: [String]) {
+        self.outcomes = outcomes
+        self.problems = problems
+    }
     public var savedBytes: Int64 { outcomes.reduce(0) { $0 + $1.savedBytes } }
     public var compressedCount: Int { outcomes.filter { $0.savedBytes > 0 }.count }
 }

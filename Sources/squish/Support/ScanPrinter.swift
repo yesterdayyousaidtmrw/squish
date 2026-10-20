@@ -21,6 +21,9 @@ struct ScanPrinter {
             let counts = SkipReason.allCases.compactMap { reason in result.skips[reason].map { "\(reason.rawValue) \($0)" } }
             print("Skipped: " + counts.joined(separator: " · "))
         }
+        if !result.rewrittenPaths.isEmpty {
+            print("  \(result.rewrittenPaths.count) file(s) were rewritten since Squish compressed them; each now waits twice as long.")
+        }
         if let needsAdmin = result.skips[.needsAdmin] {
             print("  \(needsAdmin) item(s) are owned by root; run with sudo to include them.")
         }
