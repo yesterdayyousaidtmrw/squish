@@ -1,7 +1,7 @@
 import XCTest
 @testable import SquishCore
 
-private final class RecordingCompressor: Compressor {
+final class RecordingCompressor: Compressor {
     var calls: [[String]] = []
     var failingNames: Set<String> = []
 

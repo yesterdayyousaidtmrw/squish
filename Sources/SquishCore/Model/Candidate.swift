@@ -22,6 +22,8 @@ public enum SkipReason: String, CaseIterable {
     case alreadyCompressed
     case excludedType
     case incompressible
+    case tooLittleGain
+    case openElsewhere
     case excludedPath
     case noMatchingCategory
     case tooSmall

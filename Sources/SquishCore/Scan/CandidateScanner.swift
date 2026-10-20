@@ -9,6 +9,7 @@ public struct CandidateScanner {
     let isAppRunning: (URL) -> Bool
     let canModify: (URL) -> Bool
     let sampler: CompressibilityProbe
+    let openFiles: OpenFileProbe
     let ledger: ChurnLedger
     let now: Date
     private let excludedRoots: [String]
@@ -20,9 +21,11 @@ public struct CandidateScanner {
         isAppRunning: @escaping (URL) -> Bool = RunningApps.snapshot(),
         canModify: @escaping (URL) -> Bool = CandidateScanner.canModify,
         sampler: CompressibilityProbe = LZFSESampler(),
+        openFiles: OpenFileProbe = LibprocOpenFiles(),
         ledger: ChurnLedger = ChurnLedger(),
         now: Date = Date()
     ) {
+        self.openFiles = openFiles
         self.ledger = ledger
         self.config = config
         self.probe = probe
@@ -48,8 +51,15 @@ public struct CandidateScanner {
         }
         let fileCategories = enabled.filter { $0.id != Categories.appsID }
         if !fileCategories.isEmpty {
+            let openPaths: Set<String>?
+            do {
+                openPaths = try openFiles.openPaths()
+            } catch {
+                result.problems.append("cannot list open files, so every file was left alone: \(error.localizedDescription)")
+                openPaths = nil
+            }
             for location in config.fileLocations {
-                scanFiles(in: Paths.expand(location), categories: fileCategories, into: &result)
+                scanFiles(in: Paths.expand(location), categories: fileCategories, openPaths: openPaths, into: &result)
             }
         }
         return result
@@ -150,6 +160,7 @@ public struct CandidateScanner {
                 allocatedBefore: file.facts.allocatedBytes, logicalBytes: file.facts.logicalBytes, ratio: ratio
             ))
         }
+        guard candidate.estimatedSavedBytes >= SavingsEstimate.minimumWorthwhile else { return result.skip(.tooLittleGain) }
         result.candidates.append(candidate)
     }
 
@@ -199,7 +210,7 @@ public struct CandidateScanner {
         }
     }
 
-    private func scanFiles(in location: URL, categories: [FileCategory], into result: inout ScanResult) {
+    private func scanFiles(in location: URL, categories: [FileCategory], openPaths: Set<String>?, into result: inout ScanResult) {
         let root = Paths.canonical(location)
         guard FileManager.default.fileExists(atPath: root.path) else { return }
         var walkErrors: [String] = []
@@ -247,14 +258,17 @@ public struct CandidateScanner {
                 result.skip(.excludedPath)
                 continue
             }
-            evaluateFile(url, facts: facts, directories: directories, projectActivity: project?.activity, categories: categories, into: &result)
+            evaluateFile(
+                url, facts: facts, directories: directories, projectActivity: project?.activity,
+                categories: categories, openPaths: openPaths, into: &result
+            )
         }
         result.problems += walkErrors
     }
 
     private func evaluateFile(
         _ url: URL, facts: FileFacts, directories: [String], projectActivity: Date?,
-        categories: [FileCategory], into result: inout ScanResult
+        categories: [FileCategory], openPaths: Set<String>?, into result: inout ScanResult
     ) {
         if facts.isCompressed { return result.skip(.alreadyCompressed) }
         if facts.linkCount > 1 { return result.skip(.hardLinked) }
@@ -287,6 +301,9 @@ public struct CandidateScanner {
         candidate.estimatedSavedBytes = SavingsEstimate.savedBytes(
             allocatedBefore: facts.allocatedBytes, logicalBytes: facts.logicalBytes, ratio: ratio
         )
+        guard candidate.estimatedSavedBytes >= SavingsEstimate.minimumWorthwhile else { return result.skip(.tooLittleGain) }
+        // No snapshot means nothing is known to be closed.
+        guard let openPaths, !openPaths.contains(url.path) else { return result.skip(.openElsewhere) }
         result.candidates.append(candidate)
     }
 }

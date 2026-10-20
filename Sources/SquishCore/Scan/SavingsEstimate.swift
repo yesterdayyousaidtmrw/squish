@@ -1,5 +1,7 @@
 public enum SavingsEstimate {
     static let blockSize: Int64 = 4096
+    /// Less than one block of gain is not worth rewriting a file for.
+    public static let minimumWorthwhile: Int64 = blockSize
     static let chunkSize: Int64 = 65_536
     static let headerBytes: Int64 = 256
 

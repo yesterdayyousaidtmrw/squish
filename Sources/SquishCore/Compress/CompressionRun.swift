@@ -23,17 +23,20 @@ public struct CompressionRun {
     let batchSize: Int
     let progress: (String) -> Void
     let runningApps: () -> (URL) -> Bool
+    let openFiles: OpenFileProbe
 
     public init(
         compressor: Compressor,
         batchSize: Int = 200,
         progress: @escaping (String) -> Void = { _ in },
-        runningApps: @escaping () -> (URL) -> Bool = RunningApps.snapshot
+        runningApps: @escaping () -> (URL) -> Bool = RunningApps.snapshot,
+        openFiles: OpenFileProbe = LibprocOpenFiles()
     ) {
         self.compressor = compressor
         self.batchSize = batchSize
         self.progress = progress
         self.runningApps = runningApps
+        self.openFiles = openFiles
     }
 
     /// Savings are measured from disk afterwards, not taken from afsctool's word.
@@ -48,10 +51,12 @@ public struct CompressionRun {
                 progress("  skipped: \(label(batch)) is running now")
                 continue
             }
+            let ready = batch[0].kind == .app ? batch : closedFiles(batch, problems: &problems)
+            guard !ready.isEmpty else { continue }
             do {
-                try compressor.compress(batch.map(\.url))
+                try compressor.compress(ready.map(\.url))
             } catch {
-                problems.append("\(label(batch)): \(error.localizedDescription)")
+                problems.append("\(label(ready)): \(error.localizedDescription)")
             }
         }
         let outcomes = candidates.map { candidate -> CandidateOutcome in
@@ -73,6 +78,22 @@ public struct CompressionRun {
             Array(files[$0..<min($0 + batchSize, files.count)])
         }
         return apps + fileBatches
+    }
+
+    /// Same reason as the running-app check: a file opened since the scan is in use.
+    private func closedFiles(_ batch: [Candidate], problems: inout [String]) -> [Candidate] {
+        let openPaths: Set<String>
+        do {
+            openPaths = try openFiles.openPaths()
+        } catch {
+            problems.append("\(label(batch)): cannot list open files, so they were left alone: \(error.localizedDescription)")
+            return []
+        }
+        return batch.filter { candidate in
+            guard openPaths.contains(candidate.url.path) else { return true }
+            progress("  skipped: \(candidate.url.lastPathComponent) is open now")
+            return false
+        }
     }
 
     private func label(_ batch: [Candidate]) -> String {
