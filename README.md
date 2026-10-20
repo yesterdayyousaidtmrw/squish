@@ -34,7 +34,7 @@ compress ──► │ Compress in place (LZFSE)    │  file data is stored com
                  same file, less disk space
 ```
 
-1. **Scan.** Squish looks through the folders you choose and decides whether each app or file is *dormant*: not modified, opened or launched for a number of days you set. It uses file dates and Spotlight's "last opened" record, and judges code projects as a whole (see [How "unused" is decided](#how-unused-is-decided)). For each dormant file it compresses a 64 KB sample in memory, so it knows how much the file will really shrink and can tell you the saving before anything changes. Running apps and files another program has open are never touched.
+1. **Scan.** Squish looks through the folders you choose and decides whether each app or file is *dormant*: not modified, opened or launched for a number of days you set. It uses file dates and Spotlight's "last opened" record, and judges code projects as a whole (see [How "unused" is decided](#how-unused-is-decided)). For each dormant file it compresses a 64 KB sample in memory, so it knows how much the file will really shrink and can tell you the saving before anything changes. Running apps and files that one of your programs has open are never touched.
 2. **Compress.** Dormant items are compressed in place with APFS compression (via [`afsctool`](https://github.com/RJVB/afsctool)). Each file is checked after it's written, and the space actually freed is measured from disk and printed next to the estimate.
 3. **Use as normal.** When anything reads the file, macOS decompresses it on the fly. Code signatures, permissions, dates and Finder tags are kept.
 
@@ -107,14 +107,14 @@ Beyond file types, it skips anything that wouldn't pay off:
 
 - **Doesn't shrink enough:** a sample compressed by less than `minSavingsPercent` (`incompressible` in the scan). This catches compressed data under any name.
 - **Too small to matter:** the saving would be under 4 KB (`tooLittleGain`). APFS keeps at least one 4 KB block per compressed file, so files of 4 KB or less never get smaller.
-- **In use right now:** another program has the file open, such as a database or a log being written (`openElsewhere`). Squish checks again just before compressing.
+- **In use right now:** another program has the file open, such as a database or a log being written (`openElsewhere`). Squish checks again just before compressing. Without `sudo` it can only see your own programs, which are the ones that open your files. System processes are visible only under `sudo`.
 
 ### How "unused" is decided
 
 - **Files:** the latest of when the file was last changed, last read, and last opened according to Spotlight.
 - **Apps:** the last launch (from Spotlight) or the last install or update.
 - **Code projects count as one unit.** A folder with `.git`, `package.json` or `Package.swift` is a project. If you've edited any of its own files or made a git commit or checkout recently, everything inside it counts as in use, including `node_modules`, `.build` and other dependency folders. Those keep their install date forever, so judged file by file they'd look abandoned in a project you work on every day.
-- **Files that keep getting rewritten wait longer.** Squish remembers what it compressed in `state.json`, next to your settings. If a compressed file later turns up uncompressed with new content, something is regenerating it, so its waiting time doubles each time it happens (up to 32 times). Files that churn stop being compressed only to be undone again.
+- **Files that keep getting rewritten wait longer.** Squish remembers what it compressed in `state.json`, next to your settings. If a compressed file later turns up uncompressed with new content, something is regenerating it, so its waiting time doubles each time it happens, up to 32 times the usual wait. Files that churn stop being compressed only to be undone again.
 
 ## Settings
 
@@ -224,7 +224,7 @@ You don't need to restore files first. They keep working exactly as they are. To
 ## For developers
 
 ```bash
-swift test   # 40 tests, including real compression round-trips (needs afsctool)
+swift test   # 42 tests, including real compression round-trips (needs afsctool)
 ```
 
 - `Sources/SquishCore`: the engine. Config, scanning, dormancy, compression, scheduling.

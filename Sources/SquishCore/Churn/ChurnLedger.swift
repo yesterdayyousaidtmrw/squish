@@ -50,7 +50,10 @@ public struct ChurnLedger: Codable, Equatable {
     /// and forgets paths that no longer exist.
     public mutating func update(after report: RunReport, rewritten: [String]) throws {
         for path in rewritten { recordRewrite(path) }
-        for outcome in report.outcomes where outcome.candidate.kind == .file {
+        // A file deleted since it was compressed has nothing left to record; reading
+        // it would throw and lose the whole run's history.
+        for outcome in report.outcomes where outcome.candidate.kind == .file
+            && FileManager.default.fileExists(atPath: outcome.candidate.url.path) {
             let facts = try FileFacts.read(outcome.candidate.url)
             if facts.isCompressed { recordCompressed(outcome.candidate.url.path, facts: facts) }
         }

@@ -18,7 +18,8 @@ final class ProjectDormancyTests: XCTestCase {
         config.fileLocations = [path(location).path]
         config.categories = ["devArtifacts", "code"]
         let result = CandidateScanner(
-            config: config, probe: FakeProbe(), isAppRunning: { _ in false }, canModify: { _ in true }, now: now
+            config: config, probe: FakeProbe(), isAppRunning: { _ in false }, canModify: { _ in true },
+            projectBoundary: tree.root, now: now
         ).scan()
         let prefix = Paths.canonical(tree.root).path + "/"
         return Set(result.candidates.map { String($0.url.path.dropFirst(prefix.count)) })
@@ -59,6 +60,18 @@ final class ProjectDormancyTests: XCTestCase {
         try tree.setTimes(path("Code/active/Sources/main.swift"), to: daysAgo(3, from: now))
 
         XCTAssertEqual(pickedPaths(scanning: "Code/active"), [])
+    }
+
+    func testScanLocationInsideAnActiveProject() throws {
+        try tree.file("Code/active/package.json")
+        try tree.file("Code/active/src/index.js")
+        try tree.file("Code/active/node_modules/lib/index.js")
+        try tree.file("Code/active/node_modules/dep/package.json")
+        try tree.ageEverything(to: daysAgo(100, from: now))
+        try tree.setTimes(path("Code/active/src/index.js"), to: daysAgo(2, from: now))
+
+        XCTAssertEqual(pickedPaths(scanning: "Code/active/node_modules"), [], "the enclosing project is in use")
+        XCTAssertEqual(pickedPaths(scanning: "Code/active/node_modules/dep"), [], "even from inside a dependency")
     }
 
     func testPackagesInsideDependenciesDoNotCountAsProjects() throws {

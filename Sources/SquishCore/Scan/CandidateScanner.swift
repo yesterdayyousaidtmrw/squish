@@ -11,6 +11,8 @@ public struct CandidateScanner {
     let sampler: CompressibilityProbe
     let openFiles: OpenFileProbe
     let ledger: ChurnLedger
+    /// The upward search for an enclosing project stops below this folder.
+    let projectBoundary: URL
     let now: Date
     private let excludedRoots: [String]
     private let excludedExtensions: Set<String>
@@ -23,8 +25,10 @@ public struct CandidateScanner {
         sampler: CompressibilityProbe = LZFSESampler(),
         openFiles: OpenFileProbe = LibprocOpenFiles(),
         ledger: ChurnLedger = ChurnLedger(),
+        projectBoundary: URL = Paths.home,
         now: Date = Date()
     ) {
+        self.projectBoundary = projectBoundary
         self.openFiles = openFiles
         self.ledger = ledger
         self.config = config
@@ -227,7 +231,7 @@ public struct CandidateScanner {
             return
         }
         let rootDepth = root.pathComponents.count
-        var project = ProjectActivity.isProjectRoot(root) ? projectScope(at: root, into: &result) : nil
+        var project = ProjectActivity.outermostRoot(containing: root, below: projectBoundary).map { projectScope(at: $0, into: &result) }
         for case let url as URL in walker {
             if let current = project, !url.path.hasPrefix(current.rootPath + "/") { project = nil }
             let facts: FileFacts
@@ -286,6 +290,9 @@ public struct CandidateScanner {
             return result.skip(.recentlyUsed)
         }
         guard canModify(url) else { return result.skip(.needsAdmin) }
+        // Before sampling, so a file another program is writing is never read.
+        // No snapshot means nothing is known to be closed.
+        guard let openPaths, !openPaths.contains(url.path) else { return result.skip(.openElsewhere) }
         let ratio: Double
         do {
             ratio = try sampler.compressedRatio(of: url, accessed: facts.accessed)
@@ -302,8 +309,6 @@ public struct CandidateScanner {
             allocatedBefore: facts.allocatedBytes, logicalBytes: facts.logicalBytes, ratio: ratio
         )
         guard candidate.estimatedSavedBytes >= SavingsEstimate.minimumWorthwhile else { return result.skip(.tooLittleGain) }
-        // No snapshot means nothing is known to be closed.
-        guard let openPaths, !openPaths.contains(url.path) else { return result.skip(.openElsewhere) }
         result.candidates.append(candidate)
     }
 }

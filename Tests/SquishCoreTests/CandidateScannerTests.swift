@@ -49,7 +49,7 @@ final class CandidateScannerTests: XCTestCase {
             probe: FakeProbe(dates: ["spotlit.txt": daysAgo(2, from: now)]),
             isAppRunning: { $0.lastPathComponent == "Running.app" },
             canModify: { _ in canModify },
-            now: now
+            projectBoundary: tree.root, now: now
         )
     }
 

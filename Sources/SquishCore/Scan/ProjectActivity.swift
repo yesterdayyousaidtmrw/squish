@@ -9,6 +9,31 @@ public enum ProjectActivity {
         rootMarkers.contains { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0).path) }
     }
 
+    /// The outermost project at or above `directory`, so a scan location inside a
+    /// project (its node_modules, a monorepo package) is judged by that project.
+    /// The search climbs only within `boundary` (the home folder by default) and
+    /// stops below it: a dotfiles repo in ~, or a stray package.json in /tmp,
+    /// would otherwise turn everything under it into one "active" project.
+    /// Outside the boundary only `directory` itself is considered. Folders
+    /// inside dependencies never count as projects.
+    public static func outermostRoot(containing directory: URL, below boundary: URL) -> URL? {
+        let stop = Paths.canonical(boundary).path
+        guard directory.path.hasPrefix(stop + "/") else {
+            return isOwnProject(directory) ? directory : nil
+        }
+        var found: URL?
+        var current = directory
+        while current.path != stop {
+            if isOwnProject(current) { found = current }
+            current = current.deletingLastPathComponent()
+        }
+        return found
+    }
+
+    private static func isOwnProject(_ directory: URL) -> Bool {
+        !directory.pathComponents.contains(where: Categories.artifactDirectoryNames.contains) && isProjectRoot(directory)
+    }
+
     /// Newest mtime among the project's own files (artifact folders and .git
     /// internals excluded), and git's HEAD and reflog, which move on every
     /// checkout and commit.

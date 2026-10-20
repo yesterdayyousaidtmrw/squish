@@ -14,7 +14,8 @@ final class OpenFileAndGainTests: XCTestCase {
         config.fileLocations = [tree.root.appendingPathComponent("Files").path]
         config.categories = ["code"]
         return CandidateScanner(
-            config: config, probe: FakeProbe(), isAppRunning: { _ in false }, canModify: { _ in true }, now: now
+            config: config, probe: FakeProbe(), isAppRunning: { _ in false }, canModify: { _ in true },
+            projectBoundary: tree.root, now: now
         ).scan()
     }
 

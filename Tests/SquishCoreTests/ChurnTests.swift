@@ -15,7 +15,7 @@ final class ChurnTests: XCTestCase {
         config.categories = ["code"]
         return CandidateScanner(
             config: config, probe: FakeProbe(), isAppRunning: { _ in false }, canModify: { _ in true },
-            ledger: ledger, now: now
+            ledger: ledger, projectBoundary: tree.root, now: now
         ).scan()
     }
 
@@ -88,6 +88,25 @@ final class ChurnTests: XCTestCase {
         XCTAssertEqual(ledger.files[untouched.path]?.rewrites, 1)
         XCTAssertEqual(ledger.files[untouched.path]?.compressed, false)
         XCTAssertNil(ledger.files["/gone/file"], "paths that no longer exist are pruned")
+    }
+
+    /// One file deleted mid-run must not cost the history of everything else.
+    func testFileDeletedDuringTheRunIsDropped() throws {
+        let kept = try tree.textFile("Files/kept.json", bytes: 100_000)
+        let deleted = try tree.textFile("Files/deleted.json", bytes: 100_000)
+        let candidates = try [kept, deleted].map { url in
+            Candidate(url: url, kind: .file, categoryID: "code", lastActivity: now, compressibleBytes: 0,
+                      allocatedBytes: try FileFacts.read(url).allocatedBytes)
+        }
+        try FileManager.default.removeItem(at: deleted)
+        var ledger = ChurnLedger()
+
+        try ledger.update(
+            after: RunReport(outcomes: candidates.map { CandidateOutcome(candidate: $0, allocatedAfter: 0) }, problems: []),
+            rewritten: [kept.path]
+        )
+        XCTAssertEqual(ledger.files[kept.path]?.rewrites, 1)
+        XCTAssertNil(ledger.files[deleted.path])
     }
 
     func testStoreRoundTripsAndStartsEmpty() throws {
