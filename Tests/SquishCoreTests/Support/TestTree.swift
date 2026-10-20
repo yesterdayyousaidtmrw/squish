@@ -14,8 +14,10 @@ final class TestTree {
         try? FileManager.default.removeItem(at: root)
     }
 
+    /// 64 KB by default: a file of 4 KB or less never shrinks on disk, so smaller
+    /// fixtures would be skipped for too little gain and test nothing else.
     @discardableResult
-    func file(_ path: String, bytes: Int = 4096) throws -> URL {
+    func file(_ path: String, bytes: Int = 65_536) throws -> URL {
         let url = root.appendingPathComponent(path)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(repeating: UInt8(ascii: "a"), count: bytes).write(to: url)

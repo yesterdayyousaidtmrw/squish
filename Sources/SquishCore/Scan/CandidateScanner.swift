@@ -141,6 +141,23 @@ public struct CandidateScanner {
 
     // MARK: Files
 
+    /// The outermost project the walk is inside. Only the outermost matters: its
+    /// activity already covers every nested project's own files.
+    private struct ProjectScope {
+        let rootPath: String
+        let activity: Date
+    }
+
+    private func projectScope(at directory: URL, into result: inout ScanResult) -> ProjectScope {
+        do {
+            return ProjectScope(rootPath: directory.path, activity: try ProjectActivity.lastActivity(of: directory))
+        } catch {
+            // Better to leave a project alone than compress one that may be in use.
+            result.problems.append("\(directory.path): project activity unknown, treated as active: \(error.localizedDescription)")
+            return ProjectScope(rootPath: directory.path, activity: now)
+        }
+    }
+
     private func scanFiles(in location: URL, categories: [FileCategory], into result: inout ScanResult) {
         let root = Paths.canonical(location)
         guard FileManager.default.fileExists(atPath: root.path) else { return }
@@ -158,7 +175,9 @@ public struct CandidateScanner {
             return
         }
         let rootDepth = root.pathComponents.count
+        var project = ProjectActivity.isProjectRoot(root) ? projectScope(at: root, into: &result) : nil
         for case let url as URL in walker {
+            if let current = project, !url.path.hasPrefix(current.rootPath + "/") { project = nil }
             let facts: FileFacts
             do {
                 facts = try FileFacts.read(url)
@@ -167,12 +186,18 @@ public struct CandidateScanner {
                 result.skip(.unreadable)
                 continue
             }
+            let directories = Array(url.deletingLastPathComponent().pathComponents.dropFirst(rootDepth))
             if facts.isDirectory {
                 if isExcluded(url) {
                     result.skip(.excludedPath)
                     walker.skipDescendants()
                 } else if Self.skippedDirectoryNames.contains(url.lastPathComponent) {
                     walker.skipDescendants()
+                } else if project == nil,
+                          !(directories + [url.lastPathComponent]).contains(where: Categories.artifactDirectoryNames.contains),
+                          ProjectActivity.isProjectRoot(url) {
+                    // A package.json inside node_modules is a dependency, not the user's project.
+                    project = projectScope(at: url, into: &result)
                 }
                 continue
             }
@@ -181,13 +206,15 @@ public struct CandidateScanner {
                 result.skip(.excludedPath)
                 continue
             }
-            let directories = Array(url.deletingLastPathComponent().pathComponents.dropFirst(rootDepth))
-            evaluateFile(url, facts: facts, directories: directories, categories: categories, into: &result)
+            evaluateFile(url, facts: facts, directories: directories, projectActivity: project?.activity, categories: categories, into: &result)
         }
         result.problems += walkErrors
     }
 
-    private func evaluateFile(_ url: URL, facts: FileFacts, directories: [String], categories: [FileCategory], into result: inout ScanResult) {
+    private func evaluateFile(
+        _ url: URL, facts: FileFacts, directories: [String], projectActivity: Date?,
+        categories: [FileCategory], into result: inout ScanResult
+    ) {
         if facts.isCompressed { return result.skip(.alreadyCompressed) }
         if facts.linkCount > 1 { return result.skip(.hardLinked) }
         if facts.logicalBytes == 0 || facts.logicalBytes < config.minFileBytes { return result.skip(.tooSmall) }
@@ -196,7 +223,7 @@ public struct CandidateScanner {
         guard let category = categories.first(where: { $0.matches(fileExtension: ext, directories: directories) }) else {
             return result.skip(.noMatchingCategory)
         }
-        let filesystemDate = max(facts.modified, facts.accessed)
+        let filesystemDate = max(facts.modified, facts.accessed, projectActivity ?? .distantPast)
         guard let last = dormantSince(url, filesystemDate: filesystemDate, categoryID: category.id) else {
             return result.skip(.recentlyUsed)
         }

@@ -10,7 +10,9 @@ final class CandidateScannerTests: XCTestCase {
         try tree.file("Files/old.swift")
         try tree.file("Files/recent.swift")
         try tree.file("Files/photo.jpg")
-        try tree.file("Files/.git/objects/ab/cdef")
+        // In its own dormant repo: a .git directly in Files/ would make all of Files/ one
+        // project, active because recent.swift was edited 5 days ago.
+        try tree.file("Files/repo/.git/objects/ab/cdef")
         try tree.file("Files/empty.txt", bytes: 0)
         try tree.file("Files/proj/node_modules/lib/index")
         try tree.file("Files/notes.md")
