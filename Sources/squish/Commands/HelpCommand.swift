@@ -8,6 +8,9 @@ enum HelpCommand {
           compress [--yes]         compress candidates in place (asks first unless --yes)
           status <path>…           compressed file count, data size and on-disk size
           restore <path>…          decompress everything under the paths (Apple's afscexpand)
+          purge [--yes]            dry run: list rebuildable folders of long-unused projects and
+                                   package manager caches; --yes moves the folders to the Trash
+                                   and clears the caches (--days N overrides purgeAfterDays)
           categories               list categories, whether each is on, and its dormancy window
           config [show|path|init]  show the settings, print their path, or write the defaults
           schedule [show|install [--hour N]|uninstall]

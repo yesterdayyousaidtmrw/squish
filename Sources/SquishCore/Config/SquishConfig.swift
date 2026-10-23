@@ -12,6 +12,8 @@ public struct SquishConfig: Codable, Equatable {
     public var minFileBytes: Int64
     public var excludedPaths: [String]
     public var excludedExtensions: [String]
+    /// `squish purge`: days a project must sit untouched before its rebuildable folders go.
+    public var purgeAfterDays: Int
 
     public static let standard = SquishConfig(
         appLocations: ["/Applications", "~/Applications"],
@@ -30,7 +32,8 @@ public struct SquishConfig: Codable, Equatable {
             "zip", "gz", "tgz", "bz2", "xz", "zst", "lz4", "7z", "rar", "dmg", "pkg", "xip", "iso",
             "jar", "war", "apk", "ipa", "docx", "xlsx", "pptx", "pages", "numbers", "key", "epub",
             "woff", "woff2", "pack", "sparseimage",
-        ]
+        ],
+        purgeAfterDays: 90
     )
 
     public func dormantDays(forCategory id: String) -> Int {
@@ -47,7 +50,7 @@ public struct SquishConfig: Codable, Equatable {
         for id in categories + Array(dormantDaysByCategory.keys) where !known.contains(id) {
             throw ConfigError.unknownCategory(id)
         }
-        guard dormantDays >= 0, dormantDaysByCategory.values.allSatisfy({ $0 >= 0 }) else {
+        guard dormantDays >= 0, purgeAfterDays >= 0, dormantDaysByCategory.values.allSatisfy({ $0 >= 0 }) else {
             throw ConfigError.invalid("dormant days cannot be negative")
         }
         guard (1...9).contains(zlibLevel) else { throw ConfigError.invalid("zlibLevel must be 1-9") }
@@ -73,6 +76,7 @@ extension SquishConfig {
         excludedPaths = try c.decodeIfPresent([String].self, forKey: .excludedPaths) ?? d.excludedPaths
         excludedExtensions = (try c.decodeIfPresent([String].self, forKey: .excludedExtensions) ?? d.excludedExtensions)
             .map { $0.lowercased() }
+        purgeAfterDays = try c.decodeIfPresent(Int.self, forKey: .purgeAfterDays) ?? d.purgeAfterDays
     }
 }
 

@@ -160,6 +160,7 @@ You only need to include what you change. Anything left out uses the default. A 
 | `zlibLevel` | 1–9, only for `zlib` | `9` |
 | `minSavingsPercent` | Leave a file alone unless a sample of it shrinks by at least this much | `10` |
 | `minFileBytes` | Ignore files smaller than this | `1` |
+| `purgeAfterDays` | `squish purge`: days a project must sit untouched before its rebuildable folders go | `90` |
 | `excludedPaths` | Folders and files never to touch | none |
 | `excludedExtensions` | File types never to touch | already-compressed formats |
 
@@ -173,6 +174,7 @@ You only need to include what you change. Anything left out uses the default. A 
 | `squish compress` | Compresses everything `scan` found, then prints the real saving next to the estimate. Asks first; add `--yes` to skip the question. |
 | `squish status <path>` | Shows how many files are compressed and the size of the data versus space used on disk. |
 | `squish restore <path>` | Decompresses everything under a path. |
+| `squish purge` | Lists rebuildable folders of long-unused projects and package manager caches. Add `--yes` to move the folders to the Trash and clear the caches. See [Purge](#purge-free-space-completely). |
 | `squish categories` | Lists the categories, whether each is on, and its dormancy window. |
 | `squish config` | Shows the settings. `config path` prints the file location; `config init` writes the defaults. |
 | `squish schedule install` | Runs `compress --yes` every day at 3:00. |
@@ -185,6 +187,31 @@ squish scan --in ~/Projects/old-client     # look at one folder only
 squish compress --only apps --days 60      # only apps unused for 60+ days
 squish compress --algorithm zlib           # smallest result for this run
 ```
+
+## Purge: free space completely
+
+Some things don't need compressing at all, because they can be recreated: a project's installed dependencies and build output, and the download caches of package managers. `squish purge` finds those and gets rid of them, which frees all of their space rather than half.
+
+```bash
+squish purge                 # dry run: what would go, how big, and how to get it back
+squish purge --yes           # do it
+squish purge --in ~/Work     # only one folder (package manager caches are left out)
+squish purge --days 180      # only projects untouched for 180+ days
+```
+
+What it removes:
+
+- **Rebuildable folders of projects untouched for 90 days** (`purgeAfterDays`): `node_modules`, `.build`, `Pods`, `target`, `.venv`, `__pycache__` and Xcode's `DerivedData`. A project counts as touched if you edited any of its own files or made a git commit or checkout.
+- **Package manager caches**, cleared with each tool's own command: `brew cleanup --prune=all`, `npm cache clean --force`, `pip3 cache purge`. Only tools you have installed are included. Their downloads come back when you next install something.
+
+How it stays safe:
+
+- **Folders go to the Trash, not straight to deletion.** You can put them back until you empty the Trash, and the space only comes back when you do.
+- **The name isn't enough.** A folder is only purged when the tool that made it left its marker: `node_modules` needs a `package.json` beside it, `.build` needs `Package.swift`, `target` needs `Cargo.toml` or `pom.xml`, and so on. Your own folder that happens to be called `target` is never touched.
+- **Only inside projects.** A `node_modules` folder with no project around it is left alone.
+- **Never in use.** Projects you've worked on recently, folders a program has open, and anything in `excludedPaths` are kept. Squish checks again just before moving anything.
+
+Every item in the list shows how to get it back (for example `npm install` or `swift build`).
 
 ## Run it automatically
 
@@ -231,7 +258,7 @@ You don't need to restore files first. They keep working exactly as they are. To
 ## For developers
 
 ```bash
-swift test   # 44 tests, including real compression round-trips (needs afsctool)
+swift test   # 52 tests, including real compression round-trips (needs afsctool)
 ```
 
 - `Sources/SquishCore`: the engine. Config, scanning, dormancy, compression, scheduling.

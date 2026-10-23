@@ -8,6 +8,7 @@ do {
     case "compress": try CompressCommand.run(invocation)
     case "status": try StatusCommand.run(invocation)
     case "restore": try RestoreCommand.run(invocation)
+    case "purge": try PurgeCommand.run(invocation)
     case "config": try ConfigCommand.run(invocation)
     case "categories": try CategoriesCommand.run(invocation)
     case "schedule": try ScheduleCommand.run(invocation)

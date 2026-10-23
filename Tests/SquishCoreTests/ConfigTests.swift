@@ -11,6 +11,13 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.algorithm, .lzfse)
     }
 
+    func testPurgeWindowDefaultsTo90DaysAndRejectsNegatives() throws {
+        XCTAssertEqual(try JSONDecoder().decode(SquishConfig.self, from: Data("{}".utf8)).purgeAfterDays, 90)
+        var config = SquishConfig.standard
+        config.purgeAfterDays = -1
+        XCTAssertThrowsError(try config.validate())
+    }
+
     func testPerCategoryDormancyFallsBackToTheDefault() {
         let config = SquishConfig.standard
         XCTAssertEqual(config.dormantDays(forCategory: "apps"), 21)
