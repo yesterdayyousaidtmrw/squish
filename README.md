@@ -268,5 +268,5 @@ CI runs the whole suite on every push and fails if any test is skipped.
 
 **Releasing:**
 1. Set the new version in `Sources/SquishCore/Version.swift` and push.
-2. Tag it (`git tag v0.2.0 && git push origin v0.2.0`). The release workflow tests, builds a universal binary, and publishes it with its SHA-256. It refuses a tag that doesn't match `Version.swift`.
-3. Update `url` and `sha256` in `Formula/squish.rb` in [homebrew-tap](https://github.com/yesterdayyousaidtmrw/homebrew-tap).
+2. Tag it (`git tag v0.2.0 && git push origin v0.2.0`). The release workflow tests, builds a universal binary, and publishes it along with a Homebrew bottle and their SHA-256 files. It refuses a tag that doesn't match `Version.swift`.
+3. In `Formula/squish.rb` in [homebrew-tap](https://github.com/yesterdayyousaidtmrw/homebrew-tap), update `url` and `sha256` (from the tarball's `.sha256`), plus the bottle's `root_url` and `all:` sha256 (from the bottle's `.sha256`).

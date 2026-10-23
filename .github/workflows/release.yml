@@ -64,7 +64,19 @@ jobs:
           shasum -a 256 "$archive" > "$archive.sha256"
           cat "$archive.sha256"
 
+      # A bottle installs without the Command Line Tools: the same binary, laid
+      # out as a Homebrew keg. Its SHA-256 goes into the tap formula.
+      - name: Package Homebrew bottle
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p "bottle/squish/$version/bin"
+          cp "$BIN" "bottle/squish/$version/bin/squish"
+          cp README.md "bottle/squish/$version/"
+          # No AppleDouble ._ files: brew would pour and link them from bin/.
+          COPYFILE_DISABLE=1 tar -czf "squish-$version.all.bottle.tar.gz" -C bottle squish
+          shasum -a 256 "squish-$version.all.bottle.tar.gz" | tee "squish-$version.all.bottle.tar.gz.sha256"
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" squish-*-macos.tar.gz* --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" squish-*-macos.tar.gz* squish-*.all.bottle.tar.gz* --title "$GITHUB_REF_NAME" --generate-notes
