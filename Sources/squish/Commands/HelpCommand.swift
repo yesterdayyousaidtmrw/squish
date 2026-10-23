@@ -12,6 +12,7 @@ enum HelpCommand {
           config [show|path|init]  show the settings, print their path, or write the defaults
           schedule [show|install [--hour N]|uninstall]
                                    run `compress --yes` daily via a LaunchAgent (default 03:00)
+          version                  print the version
 
         Overrides for this run (scan, compress, categories)
           --days N                 dormancy window for every category

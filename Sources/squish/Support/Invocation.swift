@@ -2,7 +2,7 @@ import Foundation
 
 struct Invocation {
     static let valueOptions: Set<String> = ["--config", "--days", "--algorithm", "--only", "--in", "--hour"]
-    static let knownFlags: Set<String> = ["--yes", "--all", "--force", "--help", "-h"]
+    static let knownFlags: Set<String> = ["--yes", "--all", "--force", "--help", "-h", "--version"]
 
     let command: String
     let positionals: [String]
@@ -29,7 +29,7 @@ struct Invocation {
             }
         }
         let wantsHelp = flags.contains("--help") || flags.contains("-h")
-        command = wantsHelp ? "help" : positionals.first ?? "help"
+        command = wantsHelp ? "help" : flags.contains("--version") ? "version" : positionals.first ?? "help"
         self.positionals = Array(positionals.dropFirst())
         self.flags = flags
         self.options = options

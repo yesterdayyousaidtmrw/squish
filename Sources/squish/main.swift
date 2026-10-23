@@ -1,4 +1,5 @@
 import Foundation
+import SquishCore
 
 do {
     let invocation = try Invocation(arguments: Array(CommandLine.arguments.dropFirst()))
@@ -11,6 +12,7 @@ do {
     case "categories": try CategoriesCommand.run(invocation)
     case "schedule": try ScheduleCommand.run(invocation)
     case "help": HelpCommand.run()
+    case "version": print(SquishVersion.current)
     default: throw UsageError("unknown command \"\(invocation.command)\"; see `squish help`")
     }
 } catch {

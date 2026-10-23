@@ -11,9 +11,12 @@ enum ScheduleCommand {
         case "install":
             let hour = try invocation.intOption("--hour") ?? 3
             guard (0...23).contains(hour) else { throw UsageError("--hour must be 0-23") }
-            guard let executable = Bundle.main.executableURL?.resolvingSymlinksInPath() else {
+            guard let binary = Bundle.main.executableURL else {
                 throw UsageError("cannot work out where the squish binary lives")
             }
+            let executable = ExecutablePath.stable(
+                executable: binary, searchPath: ProcessInfo.processInfo.environment["PATH"] ?? ""
+            )
             if executable.path.contains("/.build/") {
                 Console.status("warning: scheduling a binary inside .build; a clean or rebuild will break the job. Copy it somewhere stable first.")
             }
