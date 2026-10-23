@@ -176,6 +176,7 @@ You only need to include what you change. Anything left out uses the default. A 
 | `squish categories` | Lists the categories, whether each is on, and its dormancy window. |
 | `squish config` | Shows the settings. `config path` prints the file location; `config init` writes the defaults. |
 | `squish schedule install` | Runs `compress --yes` every day at 3:00. |
+| `squish version` | Prints the installed version. |
 
 Each run can override the settings without editing the file:
 
@@ -194,7 +195,7 @@ squish schedule                    # is it installed?
 squish schedule uninstall
 ```
 
-This adds a standard macOS background job (a LaunchAgent) that runs as you, at low priority. Results are written to `~/Library/Logs/squish.log`. The job remembers the path it runs, so install Squish first (see [Install](#install)) rather than scheduling a copy you built in a project folder. With Homebrew it records `/opt/homebrew/bin/squish`, which keeps working after `brew upgrade`.
+This adds a standard macOS background job (a LaunchAgent) that runs as you, at low priority. Results are written to `~/Library/Logs/squish.log`. The job remembers the path it runs, so install Squish first (see [Install](#install)) rather than scheduling a copy you built in a project folder. With Homebrew it records the `squish` link in Homebrew's `bin` folder (`/opt/homebrew/bin` on Apple Silicon, `/usr/local/bin` on Intel), which keeps working after `brew upgrade`.
 
 Apps installed by the App Store and some installers belong to the system (root), so a scheduled run skips them. To include them, run once by hand with `sudo squish compress`.
 

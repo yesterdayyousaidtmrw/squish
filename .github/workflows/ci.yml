@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Named explicitly so GitHub runs `bash -eo pipefail`: the default `bash -e`
+# lets a failing `swift test | tee` pass.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     runs-on: macos-15

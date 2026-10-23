@@ -7,6 +7,12 @@ on:
 permissions:
   contents: write
 
+# Named explicitly so GitHub runs `bash -eo pipefail`: the default `bash -e`
+# lets a failing `swift test | tee` pass.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   release:
     runs-on: macos-15
@@ -41,6 +47,11 @@ jobs:
           archs=$(lipo -archs "$bin")
           echo "architectures: $archs"
           [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "::error::not a universal binary"; exit 1; }
+          # Run the exact file being published, on both architectures.
+          for arch in arm64 x86_64; do
+            printed=$(arch "-$arch" "$bin" --version)
+            [ "$printed" = "${GITHUB_REF_NAME#v}" ] || { echo "::error::$arch binary printed '$printed'"; exit 1; }
+          done
           echo "BIN=$bin" >> "$GITHUB_ENV"
 
       - name: Package
