@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The compression round-trip tests need the real tool; without it they skip.
+      - name: Install afsctool
+        run: brew install afsctool
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test 2>&1 | tee test.log
+
+      # A skipped test proved nothing, and `swift test` still exits 0 for it.
+      - name: Fail on skipped tests
+        run: |
+          if grep -E "Test Case .* skipped" test.log; then
+            echo "::error::tests were skipped"
+            exit 1
+          fi

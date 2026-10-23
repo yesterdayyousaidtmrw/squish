@@ -1,5 +1,7 @@
 # Squish
 
+[![CI](https://github.com/yesterdayyousaidtmrw/squish/actions/workflows/ci.yml/badge.svg)](https://github.com/yesterdayyousaidtmrw/squish/actions/workflows/ci.yml)
+
 **Get disk space back from apps and files you aren't using, without deleting anything.**
 
 Squish finds apps and files on your Mac that you haven't touched in a while and compresses them in place, using the same built-in compression Apple uses for its own apps. Nothing moves, nothing gets renamed, and nothing needs unzipping. Everything opens exactly as before, it just takes less room on disk.
@@ -42,26 +44,30 @@ Finder's **Get Info** shows both numbers: the file's real size, and the much sma
 
 ## Install
 
-You need **macOS 13 or later** and **Xcode or the Command Line Tools** (`xcode-select --install`).
+You need **macOS 13 or later** and [Homebrew](https://brew.sh).
 
 ```bash
-# 1. The compression engine
-brew install afsctool
+brew install yesterdayyousaidtmrw/tap/squish
+```
 
-# 2. Get and build Squish
+This installs Squish and its compression engine, `afsctool`, and works on both Apple Silicon and Intel Macs. Check that it works:
+
+```bash
+squish version
+squish help
+```
+
+Update later with `brew upgrade squish`.
+
+**From source** (needs Xcode or the Command Line Tools: `xcode-select --install`):
+
+```bash
+brew install afsctool
 git clone https://github.com/yesterdayyousaidtmrw/squish.git
 cd squish
 swift build -c release
-
-# 3. Put it on your PATH
 sudo mkdir -p /usr/local/bin
-sudo cp .build/release/squish /usr/local/bin/
-```
-
-Check that it works:
-
-```bash
-squish help
+sudo cp "$(swift build -c release --show-bin-path)/squish" /usr/local/bin/
 ```
 
 ## Quick start
@@ -188,11 +194,11 @@ squish schedule                    # is it installed?
 squish schedule uninstall
 ```
 
-This adds a standard macOS background job (a LaunchAgent) that runs as you, at low priority. Results are written to `~/Library/Logs/squish.log`. Install Squish to a fixed location first (as in [Install](#install)), because the job remembers the exact path.
+This adds a standard macOS background job (a LaunchAgent) that runs as you, at low priority. Results are written to `~/Library/Logs/squish.log`. The job remembers the path it runs, so install Squish first (see [Install](#install)) rather than scheduling a copy you built in a project folder. With Homebrew it records `/opt/homebrew/bin/squish`, which keeps working after `brew upgrade`.
 
 Apps installed by the App Store and some installers belong to the system (root), so a scheduled run skips them. To include them, run once by hand with `sudo squish compress`.
 
-If the log shows "Operation not permitted" for `~/Documents` or `~/Downloads`, macOS privacy protection is blocking the background job. Give `/usr/local/bin/squish` **Full Disk Access** in System Settings › Privacy & Security.
+If the log shows "Operation not permitted" for `~/Documents` or `~/Downloads`, macOS privacy protection is blocking the background job. Give the `squish` binary (the path `which squish` prints) **Full Disk Access** in System Settings › Privacy & Security. After a `brew upgrade`, check it's still allowed: macOS may treat the new build as a different program.
 
 ## Is it safe?
 
@@ -215,7 +221,7 @@ If the log shows "Operation not permitted" for `~/Documents` or `~/Downloads`, m
 
 ```bash
 squish schedule uninstall                       # stop the daily job
-sudo rm /usr/local/bin/squish                   # remove the tool
+brew uninstall squish                           # remove the tool (from source: sudo rm /usr/local/bin/squish)
 rm -r ~/Library/Application\ Support/Squish     # remove the settings and history
 ```
 
@@ -224,8 +230,15 @@ You don't need to restore files first. They keep working exactly as they are. To
 ## For developers
 
 ```bash
-swift test   # 42 tests, including real compression round-trips (needs afsctool)
+swift test   # 44 tests, including real compression round-trips (needs afsctool)
 ```
 
 - `Sources/SquishCore`: the engine. Config, scanning, dormancy, compression, scheduling.
 - `Sources/squish`: the command-line front end.
+
+CI runs the whole suite on every push and fails if any test is skipped.
+
+**Releasing:**
+1. Set the new version in `Sources/SquishCore/Version.swift` and push.
+2. Tag it (`git tag v0.2.0 && git push origin v0.2.0`). The release workflow tests, builds a universal binary, and publishes it with its SHA-256. It refuses a tag that doesn't match `Version.swift`.
+3. Update `url` and `sha256` in `Formula/squish.rb` in [homebrew-tap](https://github.com/yesterdayyousaidtmrw/homebrew-tap).
