@@ -17,11 +17,11 @@ enum HelpCommand {
                                    run `compress --yes` daily via a LaunchAgent (default 03:00)
           version                  print the version
 
-        Overrides for this run (scan, compress, categories)
-          --days N                 dormancy window for every category
+        Overrides for this run (scan, compress, categories, purge)
+          --days N                 dormancy window for every category (purge: purgeAfterDays)
           --only a,b               only these categories (see `squish categories`)
           --algorithm lzfse|lzvn|zlib
-          --in <folder>            scan only this folder, for apps and files
+          --in <folder>            only this folder, for apps and files (purge: leaves caches out)
           --config <file>          use another settings file
           --all                    scan: list every candidate
 

@@ -74,12 +74,32 @@ final class PurgeTests: XCTestCase {
         XCTAssertEqual(result.openFolders, 1)
     }
 
+    /// Trashing node_modules would take an excluded path inside it along with it.
+    func testExcludedPathInsideAFolderKeepsTheWholeFolder() throws {
+        try tree.file("Code/old-web/package.json")
+        try tree.file("Code/old-web/node_modules/patched/index.js")
+        try tree.ageEverything(to: daysAgo(200, from: now))
+
+        XCTAssertEqual(plan(excluded: [path("Code/old-web/node_modules/patched").path]).items, [])
+    }
+
+    func testNestedLocationsDoNotListAFolderTwice() throws {
+        try tree.file("Code/old-web/package.json")
+        try tree.file("Code/old-web/node_modules/lib/index.js")
+        try tree.ageEverything(to: daysAgo(200, from: now))
+        var config = SquishConfig.standard
+        config.fileLocations = [path("Code").path, path("Code/old-web").path]
+
+        let result = PurgePlanner(config: config, openFiles: FakeOpenFiles(), projectBoundary: tree.root, now: now).plan()
+        XCTAssertEqual(relative(result.items), ["Code/old-web/node_modules"])
+    }
+
     func testRunTrashesFoldersAndClearsCaches() throws {
         let modules = try tree.file("Code/old-web/node_modules/lib/index.js").deletingLastPathComponent().deletingLastPathComponent()
         let trash = FakeTrash()
         var commands: [[String]] = []
         let items = [
-            PurgeItem(url: modules, kind: .folder(lastActivity: daysAgo(200, from: now)), bytes: 65_536, rebuild: "npm install"),
+            PurgeItem(url: modules, kind: .folder, bytes: 65_536, rebuild: "npm install"),
             PurgeItem(url: path("cache"), kind: .toolCache(command: ["/usr/bin/true", "clean"]), bytes: 1_000, rebuild: "re-downloaded"),
         ]
 
@@ -98,7 +118,7 @@ final class PurgeTests: XCTestCase {
         let file = try tree.file("Code/old-web/node_modules/lib/index.js")
         let modules = file.deletingLastPathComponent().deletingLastPathComponent()
         let trash = FakeTrash()
-        let item = PurgeItem(url: modules, kind: .folder(lastActivity: now), bytes: 1, rebuild: "npm install")
+        let item = PurgeItem(url: modules, kind: .folder, bytes: 1, rebuild: "npm install")
 
         let report = PurgeRun(trash: trash, openFiles: FakeOpenFiles(open: [file.path]), run: { _, _ in
             XCTFail("no command expected")

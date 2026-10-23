@@ -32,15 +32,23 @@ public struct PurgePlanner {
             plan.problems.append("cannot list open files, so nothing was planned: \(error.localizedDescription)")
             return plan
         }
-        var seenProjects = Set<String>()
+        // Each (location, project) pair is evaluated, because a location inside a
+        // project covers only part of it; folders and projects are counted once.
+        var seen = Seen()
         for location in config.fileLocations {
             let root = Paths.canonical(Paths.expand(location))
             guard FileManager.default.fileExists(atPath: root.path) else { continue }
-            for project in projects(in: root, problems: &plan.problems) where seenProjects.insert(project.path).inserted {
-                evaluate(project, within: root, openPaths: openPaths, into: &plan)
+            for project in projects(in: root, problems: &plan.problems) {
+                evaluate(project, within: root, openPaths: openPaths, seen: &seen, into: &plan)
             }
         }
+        plan.activeProjects = seen.activeProjects.count
         return plan
+    }
+
+    private struct Seen {
+        var folders = Set<String>()
+        var activeProjects = Set<String>()
     }
 
     /// The outermost projects at or under `root`, or the one enclosing it.
@@ -59,7 +67,9 @@ public struct PurgePlanner {
         return found
     }
 
-    private func evaluate(_ project: URL, within root: URL, openPaths: Set<String>, into plan: inout PurgePlan) {
+    private func evaluate(
+        _ project: URL, within root: URL, openPaths: Set<String>, seen: inout Seen, into plan: inout PurgePlan
+    ) {
         guard !exclusions.contains(project) else { return }
         let activity: Date
         do {
@@ -69,19 +79,21 @@ public struct PurgePlanner {
             return
         }
         guard now.timeIntervalSince(activity) >= Double(config.purgeAfterDays) * 86_400 else {
-            plan.activeProjects += 1
+            seen.activeProjects.insert(project.path)
             return
         }
         for (folder, rule) in rebuildableFolders(in: project, problems: &plan.problems) {
             // A location inside the project only covers what is under it.
-            guard folder.path == root.path || folder.path.hasPrefix(root.path + "/"), !exclusions.contains(folder) else { continue }
+            guard folder.path == root.path || folder.path.hasPrefix(root.path + "/"),
+                  !exclusions.overlaps(folder),
+                  seen.folders.insert(folder.path).inserted else { continue }
             if openPaths.contains(where: { $0.hasPrefix(folder.path + "/") }) {
                 plan.openFolders += 1
                 continue
             }
             do {
                 let bytes = try DiskUsage.measure(folder).allocatedBytes
-                plan.items.append(PurgeItem(url: folder, kind: .folder(lastActivity: activity), bytes: bytes, rebuild: rule.rebuild))
+                plan.items.append(PurgeItem(url: folder, kind: .folder, bytes: bytes, rebuild: rule.rebuild))
             } catch {
                 plan.problems.append("\(folder.path): \(error.localizedDescription)")
             }

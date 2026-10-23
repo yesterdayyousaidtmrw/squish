@@ -12,4 +12,10 @@ public struct Exclusions {
         let path = url.path
         return roots.contains { path == $0 || path.hasPrefix($0 + "/") }
     }
+
+    /// Also true when an exclusion sits inside `url`: removing a whole folder
+    /// must not take an excluded path within it along.
+    public func overlaps(_ url: URL) -> Bool {
+        contains(url) || roots.contains { $0.hasPrefix(url.path + "/") }
+    }
 }

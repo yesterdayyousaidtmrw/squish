@@ -20,8 +20,10 @@ enum PurgeCommand {
             return try failIfProblems(plan.problems.count)
         }
         guard invocation.flags.contains("--yes") else {
-            let hasCaches = plan.items.contains { if case .toolCache = $0.kind { return true } else { return false } }
-            print("Dry run: nothing was changed. Add --yes to move the folders to the Trash\(hasCaches ? " and clear the caches" : "").")
+            let hasFolders = plan.items.contains { $0.kind == .folder }
+            let hasCaches = plan.items.contains { $0.kind != .folder }
+            let actions = [hasFolders ? "move the folders to the Trash" : nil, hasCaches ? "clear the caches" : nil].compactMap { $0 }
+            print("Dry run: nothing was changed. Add --yes to \(actions.joined(separator: " and ")).")
             return try failIfProblems(plan.problems.count)
         }
 

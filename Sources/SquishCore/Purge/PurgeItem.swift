@@ -4,7 +4,7 @@ public struct PurgeItem: Equatable {
     public enum Kind: Equatable {
         /// Dependencies or build output of a project left alone for a long time.
         /// Moved to the Trash, so it can be put back.
-        case folder(lastActivity: Date)
+        case folder
         /// A package manager's download cache, cleared with that tool's own command.
         case toolCache(command: [String])
     }
@@ -23,6 +23,4 @@ public struct PurgePlan {
     public var problems: [String] = []
 
     public init() {}
-
-    public var totalBytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
 }

@@ -201,8 +201,8 @@ squish purge --days 180      # only projects untouched for 180+ days
 
 What it removes:
 
-- **Rebuildable folders of projects untouched for 90 days** (`purgeAfterDays`): `node_modules`, `.build`, `Pods`, `target`, `.venv`, `__pycache__` and Xcode's `DerivedData`. A project counts as touched if you edited any of its own files or made a git commit or checkout.
-- **Package manager caches**, cleared with each tool's own command: `brew cleanup --prune=all`, `npm cache clean --force`, `pip3 cache purge`. Only tools you have installed are included. Their downloads come back when you next install something.
+- **Rebuildable folders of projects untouched for 90 days** (`purgeAfterDays`): `node_modules`, `.build`, `Pods`, `target`, `.venv`, `__pycache__`, and a `DerivedData` folder kept inside a project. Xcode's shared `~/Library/Developer/Xcode/DerivedData` isn't touched. A project counts as touched if you edited any of its own files or made a git commit or checkout.
+- **Package manager caches**, cleared with each tool's own command: `brew cleanup --prune=all`, `npm cache clean --force`, `pip3 cache purge`. Only tools you have installed are included. Their downloads come back when you next install something. `brew cleanup` also permanently removes old versions of formulae you have installed; the current versions stay.
 
 How it stays safe:
 
@@ -258,10 +258,10 @@ You don't need to restore files first. They keep working exactly as they are. To
 ## For developers
 
 ```bash
-swift test   # 52 tests, including real compression round-trips (needs afsctool)
+swift test   # 54 tests, including real compression round-trips (needs afsctool)
 ```
 
-- `Sources/SquishCore`: the engine. Config, scanning, dormancy, compression, scheduling.
+- `Sources/SquishCore`: the engine. Config, scanning, dormancy, compression, purge, scheduling.
 - `Sources/squish`: the command-line front end.
 
 CI runs the whole suite on every push and fails if any test is skipped.

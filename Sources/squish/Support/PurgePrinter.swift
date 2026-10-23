@@ -28,8 +28,12 @@ enum PurgePrinter {
     }
 
     static func printReport(_ report: PurgeReport) {
-        print("Moved \(Format.bytes(report.trashedBytes)) to the Trash; empty the Trash to get the space back.")
-        if report.clearedBytes > 0 { print("Cleared \(Format.bytes(report.clearedBytes)) of package manager caches.") }
+        if report.trashedBytes > 0 {
+            print("Moved \(Format.bytes(report.trashedBytes)) to the Trash; empty the Trash to get the space back.")
+        }
+        // Sized before cleaning: the tools report nothing back.
+        if report.clearedBytes > 0 { print("Cleared package manager caches of about \(Format.bytes(report.clearedBytes)).") }
+        if report.done.isEmpty { print("Nothing was purged.") }
         ScanPrinter.printProblems(report.problems)
     }
 
