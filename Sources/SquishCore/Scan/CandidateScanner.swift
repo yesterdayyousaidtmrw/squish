@@ -14,7 +14,7 @@ public struct CandidateScanner {
     /// The upward search for an enclosing project stops below this folder.
     let projectBoundary: URL
     let now: Date
-    private let excludedRoots: [String]
+    private let exclusions: Exclusions
     private let excludedExtensions: Set<String>
 
     public init(
@@ -37,7 +37,7 @@ public struct CandidateScanner {
         self.canModify = canModify
         self.sampler = sampler
         self.now = now
-        excludedRoots = config.excludedPaths.map { Paths.canonical(Paths.expand($0)).path }
+        exclusions = Exclusions(config)
         excludedExtensions = Set(config.excludedExtensions)
     }
 
@@ -84,8 +84,7 @@ public struct CandidateScanner {
     }
 
     private func isExcluded(_ url: URL) -> Bool {
-        let path = url.path
-        return excludedRoots.contains { path == $0 || path.hasPrefix($0 + "/") }
+        exclusions.contains(url)
     }
 
     // MARK: Apps
